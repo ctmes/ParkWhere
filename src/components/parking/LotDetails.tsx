@@ -1,4 +1,7 @@
 import React from "react";
+import { Progress } from "@/components/ui/progress";
+import { Card } from "@/components/ui/card";
+import HistoricalData from "./HistoricalData";
 import {
   ArrowLeft,
   Users,
@@ -6,8 +9,6 @@ import {
   TrendingUp,
   ChevronRight,
 } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { Card } from "@/components/ui/card";
 
 interface LotDetailsProps {
   lot: {
@@ -15,31 +16,47 @@ interface LotDetailsProps {
     name: string;
     available: number;
     total: number;
-    activeViewers?: number;
-    predictions?: {
-      time: string;
-      predicted: number;
-    }[];
   };
   onBack: () => void;
 }
 
 const LotDetails = ({ lot, onBack }: LotDetailsProps) => {
-  const defaultPredictions = [
+  const [showingHistory, setShowingHistory] = React.useState(false);
+  const predictions = [
     { time: "1 hour", predicted: lot.total - lot.available - 20 },
     { time: "2 hours", predicted: lot.total - lot.available - 50 },
-    { time: "3 hours", predicted: lot.total - lot.available + 30 },
+    {
+      time: "3 hours",
+      predicted: Math.min(lot.total - lot.available + 30, lot.total),
+    },
   ];
+  const activeViewers = 12;
 
-  const predictions = lot.predictions || defaultPredictions;
-  const activeViewers = lot.activeViewers || 12;
+  const getQueueInfo = (used: number) => {
+    const overflow = used - lot.total;
+    return overflow > 0 ? overflow : 0;
+  };
 
   const getColor = (used: number) => {
     const percentage = (used / lot.total) * 100;
-    if (percentage >= 85) return "bg-red-600";
-    if (percentage >= 60) return "bg-[#DAAA00]";
+    if (percentage <= 15) return "bg-red-600";
+    if (percentage <= 40) return "bg-[#DAAA00]";
     return "bg-green-500";
   };
+
+  const getTextColor = (used: number) => {
+    const percentage = (used / lot.total) * 100;
+    if (percentage >= 85) return "text-red-600";
+    if (percentage >= 60) return "text-[#DAAA00]";
+    return "text-green-500";
+  };
+
+  if (showingHistory) {
+    return <HistoricalData lot={lot} onBack={() => setShowingHistory(false)} />;
+  }
+
+  const currentUsed = lot.total - lot.available;
+  const queueCount = getQueueInfo(currentUsed);
 
   return (
     <div className="min-h-screen w-full bg-gray-50">
@@ -60,12 +77,19 @@ const LotDetails = ({ lot, onBack }: LotDetailsProps) => {
         {/* Current Status */}
         <Card className="p-4 space-y-4 bg-white border-[#003087]/5 shadow-[0_8px_32px_rgba(0,48,135,0.04)]">
           <div className="flex justify-between items-center">
-            <span className="text-[22px] font-semibold -tracking-[0.02em] text-[#003087]">
-              {lot.available}
-              <span className="text-[#003087]/60 text-[17px] ml-1.5">
-                spots left
+            <div className="space-y-1">
+              <span className="text-[22px] font-semibold -tracking-[0.02em] text-[#003087]">
+                {queueCount > 0 ? 0 : lot.available}
+                <span className="text-[#003087]/60 text-[17px] ml-1.5">
+                  spots left
+                </span>
               </span>
-            </span>
+              {queueCount > 0 && (
+                <p className="text-red-600 text-sm font-medium">
+                  {queueCount} cars in queue
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-[#003087]/10 rounded-full">
               <Users className="h-4 w-4 text-[#003087]" />
               <span className="text-[13px] font-medium text-[#003087]">
@@ -74,10 +98,27 @@ const LotDetails = ({ lot, onBack }: LotDetailsProps) => {
             </div>
           </div>
           <Progress
-            value={((lot.total - lot.available) / lot.total) * 100}
+            value={Math.min(
+              ((lot.total - lot.available) / lot.total) * 100,
+              100,
+            )}
             className="h-2"
             indicatorClassName={getColor(lot.total - lot.available)}
           />
+          <div className="flex justify-end">
+            <span
+              className={`text-[15px] font-medium ${getTextColor(currentUsed)}`}
+            >
+              {Math.round((currentUsed / lot.total) * 100)}% full
+              {queueCount > 0 ? (
+                <span className="text-red-600 ml-2">
+                  ({queueCount} in queue)
+                </span>
+              ) : (
+                ` (${lot.available} spots)`
+              )}
+            </span>
+          </div>
         </Card>
 
         {/* Predictions */}
@@ -85,29 +126,41 @@ const LotDetails = ({ lot, onBack }: LotDetailsProps) => {
           <h2 className="text-[17px] font-semibold text-[#003087]">
             Predicted Availability
           </h2>
-          {predictions.map((pred, i) => (
-            <Card
-              key={i}
-              className="p-4 space-y-3 bg-white border-[#003087]/5 shadow-[0_8px_32px_rgba(0,48,135,0.04)]"
-            >
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-[#003087]/40" />
-                  <span className="text-[15px] text-[#003087]/80">
-                    In {pred.time}
+          {predictions.map((pred, i) => {
+            const predQueueCount = getQueueInfo(pred.predicted);
+            return (
+              <Card
+                key={i}
+                className="p-4 space-y-3 bg-white border-[#003087]/5 shadow-[0_8px_32px_rgba(0,48,135,0.04)]"
+              >
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-[#003087]/40" />
+                    <span className="text-[15px] text-[#003087]/80">
+                      In {pred.time}
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[15px] font-medium ${getTextColor(pred.predicted)}`}
+                  >
+                    {Math.round((pred.predicted / lot.total) * 100)}% full
+                    {predQueueCount > 0 ? (
+                      <span className="text-red-600 ml-2">
+                        ({predQueueCount} in queue)
+                      </span>
+                    ) : (
+                      ` (${Math.max(0, lot.total - pred.predicted)} spots)`
+                    )}
                   </span>
                 </div>
-                <span className="text-[15px] font-medium text-[#003087]">
-                  {pred.predicted} spots
-                </span>
-              </div>
-              <Progress
-                value={(pred.predicted / lot.total) * 100}
-                className="h-1.5"
-                indicatorClassName={getColor(pred.predicted)}
-              />
-            </Card>
-          ))}
+                <Progress
+                  value={Math.min((pred.predicted / lot.total) * 100, 100)}
+                  className="h-1.5"
+                  indicatorClassName={getColor(pred.predicted)}
+                />
+              </Card>
+            );
+          })}
         </div>
 
         {/* Quick Actions */}
@@ -116,7 +169,10 @@ const LotDetails = ({ lot, onBack }: LotDetailsProps) => {
             Quick Actions
           </h2>
           <Card className="divide-y divide-[#003087]/5 bg-white border-[#003087]/5 shadow-[0_8px_32px_rgba(0,48,135,0.04)]">
-            <button className="w-full flex items-center justify-between p-4 hover:bg-[#003087]/[0.02] transition-colors">
+            <button
+              onClick={() => setShowingHistory(true)}
+              className="w-full flex items-center justify-between p-4 hover:bg-[#003087]/[0.02] transition-colors"
+            >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-[#003087]/10 flex items-center justify-center">
                   <TrendingUp className="h-4 w-4 text-[#003087]" />
